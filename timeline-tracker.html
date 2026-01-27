@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dynamic Project Timeline Tracker</title>
+    <style>
+      :root {
+        --primary: #2563eb;
+        --bg: #f8fafc;
+        --border: #e2e8f0;
+      }
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background-color: var(--bg);
+        padding: 2rem;
+        max-width: 1000px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        color: #1e293b;
+      }
+
+      .controls {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+        display: grid;
+        gap: 1rem;
+      }
+
+      .input-group {
+        display: flex;
+        flex-direction: column;
+      }
+
+      label {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #64748b;
+        margin-bottom: 0.5rem;
+      }
+
+      input,
+      select {
+        padding: 0.5rem;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        font-size: 1rem;
+      }
+
+      .add-row {
+        display: grid;
+        grid-template-columns: 2fr 1fr 2fr auto;
+        gap: 10px;
+        align-items: end;
+      }
+
+      button {
+        background-color: var(--primary);
+        color: white;
+        border: none;
+        padding: 0.6rem 1.2rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+      }
+
+      button:hover {
+        background-color: #1d4ed8;
+      }
+
+      button.delete-btn {
+        background-color: #ef4444;
+        padding: 0.4rem 0.8rem;
+        font-size: 0.8rem;
+      }
+
+      table {
+        width: 1000px; /* fixed width to ensure columns don't jump */
+        border-collapse: collapse;
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      }
+
+      th,
+      td {
+        text-align: left;
+        padding: 1rem;
+        border-bottom: 1px solid var(--border);
+      }
+
+      th {
+        background-color: #f1f5f9;
+        font-weight: 600;
+        color: #475569;
+      }
+
+      /* Highlight the editable field */
+      input.editable-date {
+        border: 1px solid #94a3b8;
+        background-color: #f0f9ff;
+        cursor: pointer;
+      }
+
+      .read-only-text {
+        color: #64748b;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Project Timeline Tracker</h1>
+
+    <div class="controls">
+      <div class="input-group">
+        <label>Project Start Date</label>
+        <input type="date" id="projectStartDate" />
+      </div>
+
+      <div class="input-group">
+        <label>
+          <input
+            type="checkbox"
+            id="includeWeekends"
+            onchange="recalculateAllDates()"
+          />
+          Include Weekends in Calculations
+        </label>
+      </div>
+
+      <hr style="width: 100%; border: 0; border-top: 1px solid #e2e8f0" />
+
+      <div class="add-row">
+        <div class="input-group">
+          <label>Activity Name</label>
+          <input
+            type="text"
+            id="newActivityName"
+            placeholder="e.g. Design Phase"
+          />
+        </div>
+        <div class="input-group">
+          <label>Duration (Days)</label>
+          <input type="number" id="newDuration" min="1" value="1" />
+        </div>
+        <div class="input-group">
+          <label>Dependencies (Optional)</label>
+          <input type="text" id="newDependencies" placeholder="e.g. 1, 2" />
+        </div>
+        <div class="input-group">
+          <label>Allowed Start Days (Optional)</label>
+          <input type="text" id="newAllowedDays" placeholder="e.g. Mon, Thu" />
+        </div>
+        <button onclick="addActivity()">Add Activity</button>
+      </div>
+    </div>
+
+    <table id="timelineTable">
+      <thead>
+        <tr>
+          <th style="width: 6%">ID</th>
+          <th style="width: 18%">Activity</th>
+          <th style="width: 12%">Dependencies</th>
+          <th style="width: 14%">Constraints</th>
+          <th style="width: 14%">Est. Start (Editable)</th>
+          <th style="width: 9%">Duration</th>
+          <th style="width: 17%">Est. End (Editable)</th>
+          <th style="width: 10%">Action</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+
+    <script>
+      // State
+      let activities = [];
+      const dayMap = {
+        sunday: 0,
+        sun: 0,
+        monday: 1,
+        mon: 1,
+        tuesday: 2,
+        tue: 2,
+        wednesday: 3,
+        wed: 3,
+        thursday: 4,
+        thu: 4,
+        friday: 5,
+        fri: 5,
+        saturday: 6,
+        sat: 6,
+      };
+
+      // Initialize with today's date
+      document.getElementById('projectStartDate').valueAsDate = new Date();
+      document
+        .getElementById('projectStartDate')
+        .addEventListener('change', recalculateAllDates);
+
+      /**
+       * Adds a new activity to the project timeline.
+       * Validates input, parses dependencies, creates activity object, and triggers date recalculation.
+       */
+      function addActivity() {
+        const name = document.getElementById('newActivityName').value;
+        const duration = parseInt(document.getElementById('newDuration').value);
+        const dependenciesRaw =
+          document.getElementById('newDependencies').value;
+        const allowedDaysRaw = document.getElementById('newAllowedDays').value;
+
+        if (!name || !duration) {
+          alert('Please enter a name and duration.');
+          return;
+        }
+
+        // Parse dependencies (display IDs) to array of indices
+        const dependencies = parseDependencies(dependenciesRaw);
+
+        activities.push({
+          id: Date.now(), // unique ID
+          name: name,
+          duration: duration,
+          dependencies: dependencies,
+          allowedDays: allowedDaysRaw,
+          startDate: null,
+          endDate: null,
+        });
+
+        // Clear inputs
+        document.getElementById('newActivityName').value = '';
+        document.getElementById('newDuration').value = '1';
+        document.getElementById('newDependencies').value = '';
+        document.getElementById('newAllowedDays').value = '';
+
+        recalculateAllDates();
+      }
+
+      /**
+       * Removes an activity from the timeline and recalculates all dependent dates.
+       * @param {number} index - The index of the activity to delete in the activities array
+       */
+      function deleteActivity(index) {
+        activities.splice(index, 1);
+        recalculateAllDates();
+      }
+
+      // --- Core Logic ---
+
+      /**
+       * Recalculates start and end dates for all activities based on:
+       * - Project start date
+       * - Weekend inclusion setting
+       * - Activity dependencies
+       * - Allowed start day constraints
+       * - Activity durations
+       * 
+       * This is the core function that ensures all date calculations cascade properly
+       * when dependencies change.
+       */
+      function recalculateAllDates() {
+        const projectStartInput =
+          document.getElementById('projectStartDate').value;
+        if (!projectStartInput) return;
+
+        const includeWeekends =
+          document.getElementById('includeWeekends').checked;
+
+        activities.forEach((activity, index) => {
+          // 1. Determine earliest possible start date based on dependencies
+          let earliestStart = new Date(projectStartInput);
+
+          // Check if this activity has dependencies
+          if (activity.dependencies && activity.dependencies.length > 0) {
+            // Find the latest end date among all dependencies
+            let latestDependencyEnd = null;
+
+            activity.dependencies.forEach((depIndex) => {
+              if (depIndex >= 0 && depIndex < activities.length) {
+                const depActivity = activities[depIndex];
+                if (depActivity.endDate) {
+                  const depEndDate = new Date(depActivity.endDate);
+                  if (
+                    !latestDependencyEnd ||
+                    depEndDate > latestDependencyEnd
+                  ) {
+                    latestDependencyEnd = depEndDate;
+                  }
+                }
+              }
+            });
+
+            // Start date must be at least 1 day after the latest dependency end
+            if (latestDependencyEnd) {
+              earliestStart = addDays(latestDependencyEnd, 1);
+              // Skip weekends if necessary
+              if (!includeWeekends) {
+                earliestStart = skipWeekends(earliestStart);
+              }
+            }
+          }
+
+          // For activities with dependencies, always start immediately after dependencies
+          // For activities without dependencies, only update if not set or too early
+          if (activity.dependencies && activity.dependencies.length > 0) {
+            // Always recalculate for dependent tasks to handle cascading changes
+            activity.startDate = earliestStart;
+          } else if (
+            !activity.startDate ||
+            new Date(activity.startDate) < earliestStart
+          ) {
+            activity.startDate = earliestStart;
+          }
+
+          // Apply "Allowed Days" constraint
+          activity.startDate = getNextValidDate(
+            new Date(activity.startDate),
+            activity.allowedDays,
+          );
+
+          // Ensure start date is not on weekend if weekends are excluded
+          if (!includeWeekends) {
+            activity.startDate = skipWeekends(new Date(activity.startDate));
+          }
+
+          // 2. Calculate End Date based on Duration
+          if (includeWeekends) {
+            activity.endDate = addDays(
+              new Date(activity.startDate),
+              activity.duration - 1,
+            );
+          } else {
+            activity.endDate = addBusinessDays(
+              new Date(activity.startDate),
+              activity.duration - 1,
+            );
+          }
+        });
+
+        renderTable();
+      }
+
+      /**
+       * Handles user changes to an activity's start date.
+       * Validates weekend constraints, dependency constraints, and triggers cascade recalculation.
+       * @param {number} index - The index of the activity being modified
+       * @param {string} newStartDateString - The new start date in ISO format (YYYY-MM-DD)
+       */
+      function handleStartDateChange(index, newStartDateString) {
+        const activity = activities[index];
+        const newStart = new Date(newStartDateString);
+        const includeWeekends =
+          document.getElementById('includeWeekends').checked;
+
+        // Validate: Cannot set weekend dates if weekends are excluded
+        if (
+          !includeWeekends &&
+          (newStart.getDay() === 0 || newStart.getDay() === 6)
+        ) {
+          alert(
+            'Cannot set start date on a weekend when "Include Weekends" is not checked.',
+          );
+          renderTable(); // Reset view
+          return;
+        }
+
+        // Check if this violates dependency constraints
+        const earliestAllowed = getEarliestStartDate(index);
+        if (newStart < earliestAllowed) {
+          alert(
+            `This activity depends on others and cannot start before ${formatDateForDisplay(earliestAllowed)}`,
+          );
+          renderTable(); // Reset view
+          return;
+        }
+
+        // Adjust start date based on "Allowed Days" constraint
+        activity.startDate = getNextValidDate(newStart, activity.allowedDays);
+
+        // Recalculate all dates (will cascade to dependent activities)
+        recalculateAllDates();
+      }
+
+      /**
+       * Handles changes to an activity's dependencies.
+       * Validates for circular dependencies and triggers date recalculation.
+       * @param {number} index - The index of the activity being modified
+       * @param {string} newDependenciesString - Comma-separated list of dependency IDs (e.g., "1, 2, 3")
+       */
+      function handleDependenciesChange(index, newDependenciesString) {
+        const activity = activities[index];
+        activity.dependencies = parseDependencies(newDependenciesString);
+
+        // Validate no circular dependencies or self-references
+        if (hasCircularDependency(index)) {
+          alert(
+            'Circular dependency detected! Please check your dependencies.',
+          );
+          activity.dependencies = [];
+        }
+
+        // Reset start date to force recalculation based on new dependencies
+        activity.startDate = null;
+        recalculateAllDates();
+      }
+
+      /**
+       * Handles user changes to an activity's end date.
+       * Recalculates duration based on new end date and triggers cascade to dependent activities.
+       * @param {number} index - The index of the activity being modified
+       * @param {string} newEndDateString - The new end date in ISO format (YYYY-MM-DD)
+       */
+      function handleEndDateChange(index, newEndDateString) {
+        const activity = activities[index];
+        const originalStart = new Date(activity.startDate);
+        const newEnd = new Date(newEndDateString);
+        const includeWeekends =
+          document.getElementById('includeWeekends').checked;
+
+        // Validate: Cannot set weekend dates if weekends are excluded
+        if (
+          !includeWeekends &&
+          (newEnd.getDay() === 0 || newEnd.getDay() === 6)
+        ) {
+          alert(
+            'Cannot set end date on a weekend when "Include Weekends" is not checked.',
+          );
+          renderTable(); // Reset view
+          return;
+        }
+
+        // Validation: End date cannot be before start date
+        if (newEnd < originalStart) {
+          alert('End date cannot be before the start date.');
+          renderTable(); // Reset view
+          return;
+        }
+
+        // Calculate new duration based on whether weekends are included
+        let newDuration;
+
+        if (includeWeekends) {
+          const diffTime = Math.abs(newEnd - originalStart);
+          newDuration = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        } else {
+          newDuration = calculateBusinessDays(originalStart, newEnd);
+        }
+
+        // Update this specific activity's duration
+        activity.duration = newDuration;
+
+        // Trigger recalculation
+        recalculateAllDates();
+      }
+
+      // --- Helper Functions ---
+
+      /**
+       * Adds a specified number of calendar days to a date.
+       * @param {Date} date - The starting date
+       * @param {number} days - Number of days to add (can be negative)
+       * @returns {Date} New date object with days added
+       */
+      function addDays(date, days) {
+        const result = new Date(date);
+        result.setDate(result.getDate() + days);
+        return result;
+      }
+
+      /**
+       * Adds a specified number of business days (excluding weekends) to a date.
+       * @param {Date} date - The starting date
+       * @param {number} days - Number of business days to add
+       * @returns {Date} New date object with business days added
+       */
+      function addBusinessDays(date, days) {
+        let result = new Date(date);
+        let addedDays = 0;
+
+        while (addedDays < days) {
+          result.setDate(result.getDate() + 1);
+          // Skip weekends (0 = Sunday, 6 = Saturday)
+          if (result.getDay() !== 0 && result.getDay() !== 6) {
+            addedDays++;
+          }
+        }
+        return result;
+      }
+
+      /**
+       * Calculates the number of business days (excluding weekends) between two dates.
+       * @param {Date} startDate - The start date (inclusive)
+       * @param {Date} endDate - The end date (inclusive)
+       * @returns {number} Number of business days between the dates
+       */
+      function calculateBusinessDays(startDate, endDate) {
+        let count = 0;
+        let current = new Date(startDate);
+        const end = new Date(endDate);
+
+        while (current <= end) {
+          // Count if not weekend
+          if (current.getDay() !== 0 && current.getDay() !== 6) {
+            count++;
+          }
+          current.setDate(current.getDate() + 1);
+        }
+        return count;
+      }
+
+      /**
+       * Advances a date to the next weekday if it falls on a weekend.
+       * @param {Date} date - The date to check and potentially advance
+       * @returns {Date} The same date if it's a weekday, or the next Monday if it's a weekend
+       */
+      function skipWeekends(date) {
+        let result = new Date(date);
+        while (result.getDay() === 0 || result.getDay() === 6) {
+          result.setDate(result.getDate() + 1);
+        }
+        return result;
+      }
+
+      /**
+       * Parses a comma-separated string of dependency IDs into an array of activity indices.
+       * Converts display IDs (1-based) to array indices (0-based).
+       * @param {string} depString - Comma-separated dependency IDs (e.g., "1, 2, 3")
+       * @returns {number[]} Array of activity indices
+       */
+      function parseDependencies(depString) {
+        if (!depString || depString.trim() === '') return [];
+
+        return depString
+          .split(',')
+          .map((s) => parseInt(s.trim()))
+          .filter((n) => !isNaN(n) && n >= 1)
+          .map((n) => n - 1); // Convert display ID to index
+      }
+
+      /**
+       * Formats an array of dependency indices as a comma-separated string of display IDs.
+       * Converts array indices (0-based) to display IDs (1-based).
+       * @param {number[]} depArray - Array of activity indices
+       * @returns {string} Comma-separated dependency IDs (e.g., "1, 2, 3")
+       */
+      function formatDependencies(depArray) {
+        if (!depArray || depArray.length === 0) return '';
+        return depArray.map((index) => index + 1).join(', ');
+      }
+
+      /**
+       * Calculates the earliest allowable start date for an activity based on its dependencies.
+       * Returns project start date if no dependencies, otherwise returns the day after
+       * the latest dependency end date (respecting weekend exclusion if enabled).
+       * @param {number} activityIndex - The index of the activity to calculate for
+       * @returns {Date} The earliest allowable start date
+       */
+      function getEarliestStartDate(activityIndex) {
+        const projectStartInput =
+          document.getElementById('projectStartDate').value;
+        const activity = activities[activityIndex];
+        const includeWeekends =
+          document.getElementById('includeWeekends').checked;
+
+        let earliestStart = new Date(projectStartInput);
+
+        if (activity.dependencies && activity.dependencies.length > 0) {
+          let latestDependencyEnd = null;
+
+          activity.dependencies.forEach((depIndex) => {
+            if (
+              depIndex >= 0 &&
+              depIndex < activities.length &&
+              depIndex !== activityIndex
+            ) {
+              const depActivity = activities[depIndex];
+              if (depActivity.endDate) {
+                const depEndDate = new Date(depActivity.endDate);
+                if (!latestDependencyEnd || depEndDate > latestDependencyEnd) {
+                  latestDependencyEnd = depEndDate;
+                }
+              }
+            }
+          });
+
+          if (latestDependencyEnd) {
+            earliestStart = addDays(latestDependencyEnd, 1);
+            if (!includeWeekends) {
+              earliestStart = skipWeekends(earliestStart);
+            }
+          }
+        }
+
+        return earliestStart;
+      }
+
+      /**
+       * Recursively checks if an activity has circular dependencies.
+       * A circular dependency occurs when an activity depends on itself directly or indirectly.
+       * @param {number} startIndex - The index of the activity to check
+       * @param {Set<number>} visited - Set of already visited activity indices (used in recursion)
+       * @returns {boolean} True if circular dependency detected, false otherwise
+       */
+      function hasCircularDependency(startIndex, visited = new Set()) {
+        if (visited.has(startIndex)) return true;
+        visited.add(startIndex);
+
+        const activity = activities[startIndex];
+        if (!activity.dependencies) return false;
+
+        for (let depIndex of activity.dependencies) {
+          if (depIndex === startIndex) return true; // Self-reference
+          if (depIndex >= 0 && depIndex < activities.length) {
+            if (hasCircularDependency(depIndex, new Set(visited))) {
+              return true;
+            }
+          }
+        }
+
+        return false;
+      }
+
+      /**
+       * Finds the next date that satisfies the allowed days constraint.
+       * If no constraint is specified, returns the input date unchanged.
+       * @param {Date} date - The starting date
+       * @param {string} allowedDaysStr - Comma-separated list of allowed day names (e.g., "Mon, Wed, Fri")
+       * @returns {Date} The next date that falls on an allowed day
+       */
+      function getNextValidDate(date, allowedDaysStr) {
+        if (!allowedDaysStr || allowedDaysStr.trim() === '') return date;
+
+        const allowedIndexes = allowedDaysStr
+          .toLowerCase()
+          .split(',')
+          .map((d) => dayMap[d.trim()])
+          .filter((d) => d !== undefined);
+
+        if (allowedIndexes.length === 0) return date;
+
+        let validDate = new Date(date);
+        // Safety break to prevent infinite loops (max 1 year lookahead)
+        let safety = 0;
+
+        while (!allowedIndexes.includes(validDate.getDay()) && safety < 365) {
+          validDate.setDate(validDate.getDate() + 1);
+          safety++;
+        }
+        return validDate;
+      }
+
+      /**
+       * Formats a Date object to YYYY-MM-DD format for use in date input fields.
+       * @param {Date} dateObj - The date to format
+       * @returns {string} Date string in YYYY-MM-DD format
+       */
+      function formatDateForInput(dateObj) {
+        // Returns YYYY-MM-DD for input type="date"
+        return dateObj.toISOString().split('T')[0];
+      }
+
+      /**
+       * Formats a Date object for human-readable display.
+       * @param {Date} dateObj - The date to format
+       * @returns {string} Formatted date string (e.g., "Mon, Jan 26, 2026")
+       */
+      function formatDateForDisplay(dateObj) {
+        return dateObj.toLocaleDateString(undefined, {
+          weekday: 'short',
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        });
+      }
+
+      // --- Rendering ---
+
+      /**
+       * Renders the activities table with all current data.
+       * Creates table rows with editable date inputs, dependency fields, and delete buttons.
+       * Called after any data change to refresh the UI.
+       */
+      function renderTable() {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+
+        activities.forEach((activity, index) => {
+          const tr = document.createElement('tr');
+
+          const constraints = activity.allowedDays
+            ? `<span style="font-size:0.85em; background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:4px;">Only: ${activity.allowedDays}</span>`
+            : '<span style="color:#cbd5e1">-</span>';
+
+          const dependenciesDisplay = formatDependencies(activity.dependencies);
+          const dependenciesCell =
+            index === 0
+              ? '<span style="color:#cbd5e1">N/A</span>'
+              : `<input type="text" 
+                      style="width:100%; padding:0.3rem; border:1px solid #94a3b8; background-color:#f0f9ff; border-radius:4px;" 
+                      value="${dependenciesDisplay}"
+                      placeholder="e.g. 1, 2"
+                      onchange="handleDependenciesChange(${index}, this.value)"
+               >`;
+
+          tr.innerHTML = `
+                    <td><strong>#${index + 1}</strong></td>
+                    <td><strong>${activity.name}</strong></td>
+                    <td>${dependenciesCell}</td>
+                    <td>${constraints}</td>
+                    <td>
+                        <input type="date" 
+                               class="editable-date" 
+                               value="${formatDateForInput(activity.startDate)}"
+                               onchange="handleStartDateChange(${index}, this.value)"
+                        >
+                    </td>
+                    <td class="read-only-text">${activity.duration} Days</td>
+                    <td>
+                        <input type="date" 
+                               class="editable-date" 
+                               value="${formatDateForInput(activity.endDate)}"
+                               onchange="handleEndDateChange(${index}, this.value)"
+                        >
+                    </td>
+                    <td>
+                        <button class="delete-btn" onclick="deleteActivity(${index})">Remove</button>
+                    </td>
+                `;
+          tbody.appendChild(tr);
+        });
+      }
+    </script>
+  </body>
+</html>
