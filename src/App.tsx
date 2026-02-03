@@ -13,6 +13,7 @@ import {
   skipWeekends,
   getNextValidDate,
   parseDateString,
+  formatDateForDisplay,
 } from './utils';
 import {
   saveActivities,
@@ -80,15 +81,15 @@ function App() {
   const buildHtmlTable = (data: Activity[]) => {
     // this creates an html table string for the Name, Start Date, End Date and Duration columns
     let table =
-      '<table><tr><th>Name</th><th>Start Date</th><th>End Date</th><th>Duration (Days)</th></tr>';
+      '<table><tr><th>Activity</th><th>Duration</th><th>Start Date</th><th>End Date</th></tr>';
     data.forEach((activity) => {
       const startDate = activity.startDate
-        ? activity.startDate.toLocaleDateString()
+        ? formatDateForDisplay(activity.startDate, false)
         : 'N/A';
       const endDate = activity.endDate
-        ? activity.endDate.toLocaleDateString()
+        ? formatDateForDisplay(activity.endDate)
         : 'N/A';
-      table += `<tr><td>${activity.name}</td><td>${startDate}</td><td>${endDate}</td><td>${activity.duration}</td></tr>`;
+      table += `<tr><td>${activity.name}</td><td>${activity.duration}d</td><td>${startDate}</td><td>${endDate}</td></tr>`;
     });
     table += '</table>';
     return table;
@@ -97,12 +98,11 @@ function App() {
   const copyTableToClipboard = () => {
     const activitiesHTML = buildHtmlTable(activities);
 
-    let clipboardText =
-      'Name\tAllowed Days\tStart Date\tEnd Date\tDuration (Days)\n';
+    let clipboardText = 'Activity\tDuration\tStart Date\tEnd Date\n';
     activities.forEach((activity) => {
       const startDateString = activity.startDate!.toLocaleDateString();
       const endDateString = activity.endDate!.toLocaleDateString();
-      clipboardText += `${activity.name}\t${startDateString}\t${endDateString}\t${activity.duration}\n`;
+      clipboardText += `${activity.name}\t${activity.duration}d\t${startDateString}\t${endDateString}\n`;
     });
 
     const blobHtml = new Blob([activitiesHTML], { type: 'text/html' });

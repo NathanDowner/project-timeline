@@ -14,9 +14,9 @@ const columns = [
   { label: 'Activity', width: 'w-[18%]' },
   { label: 'Dependencies', width: 'w-[12%]' },
   { label: 'Constraints', width: 'w-[14%]' },
-  { label: 'Est. Start (Editable)', width: 'w-[14%]' },
+  { label: 'Est. Start Date', width: 'w-[14%]' },
   { label: 'Duration', width: 'w-[9%]' },
-  { label: 'Est. End (Editable)', width: 'w-[17%]' },
+  { label: 'Est. End Date', width: 'w-[17%]' },
   { label: 'Action', width: 'w-[10%]' },
 ];
 

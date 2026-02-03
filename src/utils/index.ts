@@ -1,5 +1,13 @@
+export interface Project {
+  id: string;
+  name: string;
+  startDate: Date;
+  includeWeekends: boolean;
+  activities: Activity[];
+}
+
 export interface Activity {
-  id: number;
+  id: string;
   name: string;
   duration: number;
   dependencies: number[];
@@ -24,6 +32,14 @@ const dayMap: Record<string, number> = {
   saturday: 6,
   sat: 6,
 };
+
+/**
+ * Parses a date string (YYYY-MM-DD) as a local date, avoiding timezone issues.
+ */
+export function parseDateString(dateString: string): Date {
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day); // Month is zero-based
+}
 
 /**
  * Adds a specified number of calendar days to a date.
@@ -135,10 +151,13 @@ export function formatDateForInput(dateObj: Date): string {
 /**
  * Formats a Date object for human-readable display.
  */
-export function formatDateForDisplay(dateObj: Date): string {
-  return dateObj.toLocaleDateString(undefined, {
+export function formatDateForDisplay(
+  dateObj: Date,
+  includeYear: boolean = true,
+): string {
+  return dateObj.toLocaleDateString('en-US', {
     weekday: 'short',
-    year: 'numeric',
+    year: includeYear ? 'numeric' : undefined,
     month: 'short',
     day: 'numeric',
   });
@@ -151,7 +170,7 @@ export function getEarliestStartDate(
   activityIndex: number,
   activities: Activity[],
   projectStartDate: Date,
-  includeWeekends: boolean
+  includeWeekends: boolean,
 ): Date {
   const activity = activities[activityIndex];
   let earliestStart = new Date(projectStartDate);
@@ -192,7 +211,7 @@ export function getEarliestStartDate(
 export function hasCircularDependency(
   startIndex: number,
   activities: Activity[],
-  visited: Set<number> = new Set()
+  visited: Set<number> = new Set(),
 ): boolean {
   if (visited.has(startIndex)) return true;
   visited.add(startIndex);
@@ -218,7 +237,7 @@ export function hasCircularDependency(
 export function recalculateAllDates(
   activities: Activity[],
   projectStartDate: Date,
-  includeWeekends: boolean
+  includeWeekends: boolean,
 ): Activity[] {
   return activities.map((activity, index) => {
     let earliestStart = new Date(projectStartDate);
