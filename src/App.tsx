@@ -12,8 +12,13 @@ import {
   addDays,
   skipWeekends,
   getNextValidDate,
+  parseDateString,
 } from './utils';
-import { saveActivities, loadActivities, clearActivities } from './utils/storage';
+import {
+  saveActivities,
+  loadActivities,
+  clearActivities,
+} from './utils/storage';
 
 function App() {
   const [projectStartDate, setProjectStartDate] = useState<Date>(new Date());
@@ -45,7 +50,7 @@ function App() {
     const dependencies = parseDependencies(dependenciesRaw);
 
     const newActivity: Activity = {
-      id: Date.now(),
+      id: (activities.length + 1).toString(),
       name,
       duration,
       dependencies,
@@ -61,6 +66,65 @@ function App() {
     setHasUnsavedChanges(true);
   };
 
+  /**
+   * Builds an HTML table string from an array of activities.
+   *
+   * @param data - An array of Activity objects to be displayed in the table
+   * @returns An HTML string containing a table with columns for Name, Start Date, End Date, and Duration (Days)
+   *
+   * @remarks
+   * - Dates are formatted using `toLocaleDateString()`
+   * - If start or end dates are not available, 'N/A' is displayed
+   * - Duration is displayed in days
+   */
+  const buildHtmlTable = (data: Activity[]) => {
+    // this creates an html table string for the Name, Start Date, End Date and Duration columns
+    let table =
+      '<table><tr><th>Name</th><th>Start Date</th><th>End Date</th><th>Duration (Days)</th></tr>';
+    data.forEach((activity) => {
+      const startDate = activity.startDate
+        ? activity.startDate.toLocaleDateString()
+        : 'N/A';
+      const endDate = activity.endDate
+        ? activity.endDate.toLocaleDateString()
+        : 'N/A';
+      table += `<tr><td>${activity.name}</td><td>${startDate}</td><td>${endDate}</td><td>${activity.duration}</td></tr>`;
+    });
+    table += '</table>';
+    return table;
+  };
+
+  const copyTableToClipboard = () => {
+    const activitiesHTML = buildHtmlTable(activities);
+
+    let clipboardText =
+      'Name\tAllowed Days\tStart Date\tEnd Date\tDuration (Days)\n';
+    activities.forEach((activity) => {
+      const startDateString = activity.startDate!.toLocaleDateString();
+      const endDateString = activity.endDate!.toLocaleDateString();
+      clipboardText += `${activity.name}\t${startDateString}\t${endDateString}\t${activity.duration}\n`;
+    });
+
+    const blobHtml = new Blob([activitiesHTML], { type: 'text/html' });
+    const blobText = new Blob([clipboardText], { type: 'text/plain' });
+
+    navigator.clipboard
+      .write([
+        new ClipboardItem({
+          'text/html': blobHtml,
+          'text/plain': blobText,
+        }),
+      ])
+      .then(
+        () => {
+          alert('Activity table copied to clipboard!');
+        },
+        (err) => {
+          alert('Failed to copy table: ' + err);
+        },
+      );
+  };
+
   const handleDeleteActivity = (index: number) => {
     const newActivities = activities.filter((_, i) => i !== index);
     setActivities(
@@ -71,7 +135,7 @@ function App() {
 
   const handleStartDateChange = (index: number, newStartDateString: string) => {
     const activity = activities[index];
-    const newStart = new Date(newStartDateString);
+    const newStart = parseDateString(newStartDateString);
 
     // Validate: Cannot set weekend dates if weekends are excluded
     if (
@@ -116,7 +180,7 @@ function App() {
     const originalStart = activity.startDate
       ? new Date(activity.startDate)
       : new Date();
-    const newEnd = new Date(newEndDateString);
+    const newEnd = parseDateString(newEndDateString);
 
     // Validate: Cannot set weekend dates if weekends are excluded
     if (!includeWeekends && (newEnd.getDay() === 0 || newEnd.getDay() === 6)) {
@@ -190,7 +254,7 @@ function App() {
 
   const handleClearAll = () => {
     const confirmed = window.confirm(
-      'Are you sure you want to clear all activities? This action cannot be undone.'
+      'Are you sure you want to clear all activities? This action cannot be undone.',
     );
     if (confirmed) {
       clearActivities();
@@ -230,6 +294,13 @@ function App() {
               className="bg-red-600 hover:bg-red-700 text-white font-semibold px-6 py-2.5 rounded transition-colors shadow-md"
             >
               🗑️ Clear All
+            </button>
+
+            <button
+              onClick={copyTableToClipboard}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 rounded transition-colors shadow-md"
+            >
+              💾 Print table
             </button>
           </div>
         )}
