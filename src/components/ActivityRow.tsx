@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   type Activity,
   formatDateForInput,
@@ -26,6 +26,23 @@ export function ActivityRow({
   const [depInput, setDepInput] = useState(
     formatDependencies(activity.dependencies),
   );
+  const [startDateInput, setStartDateInput] = useState<string>(
+    activity.startDate ? formatDateForInput(activity.startDate) : '',
+  );
+  const [endDateInput, setEndDateInput] = useState<string>(
+    activity.endDate ? formatDateForInput(activity.endDate) : '',
+  );
+
+  useEffect(() => {
+    setDepInput(formatDependencies(activity.dependencies));
+    if (activity.startDate) {
+      setStartDateInput(formatDateForInput(activity.startDate));
+    }
+
+    if (activity.endDate) {
+      setEndDateInput(formatDateForInput(activity.endDate));
+    }
+  }, [activity.dependencies, activity.startDate, activity.endDate]);
 
   return (
     <tr key={activity.id} className="hover:bg-slate-50 transition-colors">
@@ -62,12 +79,13 @@ export function ActivityRow({
           <div className="flex flex-col gap-1">
             <input
               type="date"
-              value={formatDateForInput(activity.startDate)}
-              onChange={(e) => onStartDateChange(e.target.value)}
+              value={startDateInput}
+              onChange={(e) => setStartDateInput(e.target.value)}
               className="px-2 py-1 text-sm border border-slate-400 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50 cursor-pointer"
+              onBlur={() => onStartDateChange(startDateInput)}
             />
             <span className="text-xs text-slate-600">
-              {formatDateForDisplay(activity.startDate)}
+              {formatDateForDisplay(new Date(startDateInput))}
             </span>
           </div>
         ) : (
@@ -85,12 +103,13 @@ export function ActivityRow({
           <div className="flex flex-col gap-1">
             <input
               type="date"
-              value={formatDateForInput(activity.endDate)}
-              onChange={(e) => onEndDateChange(e.target.value)}
+              value={endDateInput}
+              onChange={(e) => setEndDateInput(e.target.value)}
+              onBlur={() => onEndDateChange(endDateInput)}
               className="px-2 py-1 text-sm border border-slate-400 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50 cursor-pointer"
             />
             <span className="text-xs text-slate-600">
-              {formatDateForDisplay(activity.endDate)}
+              {formatDateForDisplay(new Date(endDateInput))}
             </span>
           </div>
         ) : (
