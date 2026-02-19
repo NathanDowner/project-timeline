@@ -1,46 +1,44 @@
-import { type Activity } from './index';
+import { type Project } from './index';
 
-const STORAGE_KEY = 'project-timeline-activities';
+const STORAGE_KEY = 'ptt_project';
 
 /**
- * Saves activities to localStorage
+ * Saves project to localStorage
  */
-export function saveActivities(activities: Activity[]): void {
+export function saveProject(project: Project): void {
   try {
-    const serialized = JSON.stringify(activities);
+    const serialized = JSON.stringify(project);
     localStorage.setItem(STORAGE_KEY, serialized);
   } catch (error) {
-    console.error('Failed to save activities to localStorage:', error);
+    console.error('Failed to save project to localStorage:', error);
   }
 }
 
 /**
- * Loads activities from localStorage
+ * Loads project from localStorage
  */
-export function loadActivities(): Activity[] {
+export function loadProject(): Project | null {
   try {
     const serialized = localStorage.getItem(STORAGE_KEY);
-    if (!serialized) return [];
+    if (!serialized) return null;
 
-    const activities = JSON.parse(serialized);
-    // Convert date strings back to Date objects
-    return activities.map((activity: any) => ({
-      ...activity,
-      startDate: activity.startDate ? new Date(activity.startDate) : null,
-      endDate: activity.endDate ? new Date(activity.endDate) : null,
-    }));
+    return JSON.parse(serialized);
   } catch (error) {
-    console.error('Failed to load activities from localStorage:', error);
-    return [];
+    console.error('Failed to load project from localStorage:', error);
+    return null;
   }
 }
 
 /**
- * Clears all activities from localStorage
+ * Clears only activities from the project in localStorage
  */
 export function clearActivities(): void {
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    const project = loadProject();
+    if (project) {
+      project.activities = [];
+      saveProject(project);
+    }
   } catch (error) {
     console.error('Failed to clear activities from localStorage:', error);
   }

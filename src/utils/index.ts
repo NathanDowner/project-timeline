@@ -1,7 +1,7 @@
 export interface Project {
   id: string;
   name: string;
-  startDate: Date;
+  startDate: string;
   includeWeekends: boolean;
   activities: Activity[];
 }
@@ -12,8 +12,8 @@ export interface Activity {
   duration: number;
   dependencies: number[];
   allowedDays: string;
-  startDate: Date | null;
-  endDate: Date | null;
+  startDate: string | null;
+  endDate: string | null;
 }
 
 const dayMap: Record<string, number> = {
@@ -149,12 +149,13 @@ export function formatDateForInput(dateObj: Date): string {
 }
 
 /**
- * Formats a Date object for human-readable display.
+ * Formats a date string (YYYY-MM-DD) for human-readable display.
  */
 export function formatDateForDisplay(
-  dateObj: Date,
+  dateString: string,
   includeYear: boolean = true,
 ): string {
+  const dateObj = parseDateString(dateString);
   return dateObj.toLocaleDateString('en-US', {
     weekday: 'short',
     year: includeYear ? 'numeric' : undefined,
@@ -169,11 +170,11 @@ export function formatDateForDisplay(
 export function getEarliestStartDate(
   activityIndex: number,
   activities: Activity[],
-  projectStartDate: Date,
+  projectStartDate: string,
   includeWeekends: boolean,
 ): Date {
   const activity = activities[activityIndex];
-  let earliestStart = new Date(projectStartDate);
+  let earliestStart = parseDateString(projectStartDate);
 
   if (activity.dependencies && activity.dependencies.length > 0) {
     let latestDependencyEnd: Date | null = null;
@@ -186,7 +187,7 @@ export function getEarliestStartDate(
       ) {
         const depActivity = activities[depIndex];
         if (depActivity.endDate) {
-          const depEnd = new Date(depActivity.endDate);
+          const depEnd = parseDateString(depActivity.endDate);
           if (!latestDependencyEnd || depEnd > latestDependencyEnd) {
             latestDependencyEnd = depEnd;
           }
@@ -236,11 +237,11 @@ export function hasCircularDependency(
  */
 export function recalculateAllDates(
   activities: Activity[],
-  projectStartDate: Date,
+  projectStartDate: string,
   includeWeekends: boolean,
 ): Activity[] {
-  return activities.map((activity, index) => {
-    let earliestStart = new Date(projectStartDate);
+  return activities.map((activity) => {
+    let earliestStart = parseDateString(projectStartDate);
 
     if (activity.dependencies && activity.dependencies.length > 0) {
       let latestDependencyEnd: Date | null = null;
@@ -249,7 +250,7 @@ export function recalculateAllDates(
         if (depIndex >= 0 && depIndex < activities.length) {
           const depActivity = activities[depIndex];
           if (depActivity.endDate) {
-            const depEnd = new Date(depActivity.endDate);
+            const depEnd = parseDateString(depActivity.endDate);
             if (!latestDependencyEnd || depEnd > latestDependencyEnd) {
               latestDependencyEnd = depEnd;
             }
@@ -272,11 +273,11 @@ export function recalculateAllDates(
       startDate = earliestStart;
     } else if (
       !activity.startDate ||
-      new Date(activity.startDate) < earliestStart
+      parseDateString(activity.startDate) < earliestStart
     ) {
       startDate = earliestStart;
     } else {
-      startDate = new Date(activity.startDate);
+      startDate = parseDateString(activity.startDate);
     }
 
     // Apply "Allowed Days" constraint
@@ -297,8 +298,8 @@ export function recalculateAllDates(
 
     return {
       ...activity,
-      startDate,
-      endDate,
+      startDate: formatDateForInput(startDate),
+      endDate: formatDateForInput(endDate),
     };
   });
 }

@@ -4,34 +4,44 @@ import { ActivityForm } from './components/ActivityForm';
 import { ActivityTable } from './components/ActivityTable';
 import {
   type Activity,
+  type Project,
   parseDependencies,
   recalculateAllDates,
   hasCircularDependency,
   getEarliestStartDate,
   calculateBusinessDays,
-  addDays,
-  skipWeekends,
   getNextValidDate,
   parseDateString,
   formatDateForDisplay,
+  formatDateForInput,
 } from './utils';
 import {
-  saveActivities,
-  loadActivities,
+  saveProject,
+  loadProject,
   clearActivities,
 } from './utils/storage';
 
 function App() {
-  const [projectStartDate, setProjectStartDate] = useState<Date>(new Date());
+  const [projectId, setProjectId] = useState<string>(
+    `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+  );
+  const [projectName, setProjectName] = useState<string>('My Project');
+  const [projectStartDate, setProjectStartDate] = useState<string>(
+    formatDateForInput(new Date()),
+  );
   const [includeWeekends, setIncludeWeekends] = useState<boolean>(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
 
-  // Load activities from localStorage on mount
+  // Load project from localStorage on mount
   useEffect(() => {
-    const loaded = loadActivities();
-    if (loaded.length > 0) {
-      setActivities(loaded);
+    const loaded = loadProject();
+    if (loaded) {
+      setProjectId(loaded.id);
+      setProjectName(loaded.name);
+      setProjectStartDate(loaded.startDate);
+      setIncludeWeekends(loaded.includeWeekends);
+      setActivities(loaded.activities);
     }
   }, []);
 
@@ -87,7 +97,7 @@ function App() {
         ? formatDateForDisplay(activity.startDate, false)
         : 'N/A';
       const endDate = activity.endDate
-        ? formatDateForDisplay(activity.endDate)
+        ? formatDateForDisplay(activity.endDate, false)
         : 'N/A';
       table += `<tr><td>${activity.name}</td><td>${activity.duration}d</td><td>${startDate}</td><td>${endDate}</td></tr>`;
     });
@@ -100,8 +110,8 @@ function App() {
 
     let clipboardText = 'Activity\tDuration\tStart Date\tEnd Date\n';
     activities.forEach((activity) => {
-      const startDateString = activity.startDate!.toLocaleDateString();
-      const endDateString = activity.endDate!.toLocaleDateString();
+      const startDateString = activity.startDate;
+      const endDateString = activity.endDate;
       clipboardText += `${activity.name}\t${activity.duration}d\t${startDateString}\t${endDateString}\n`;
     });
 
@@ -166,7 +176,9 @@ function App() {
     const adjustedStart = getNextValidDate(newStart, activity.allowedDays);
 
     const updatedActivities = activities.map((act, i) =>
-      i === index ? { ...act, startDate: adjustedStart } : act,
+      i === index
+        ? { ...act, startDate: formatDateForInput(adjustedStart) }
+        : act,
     );
 
     setActivities(
@@ -178,7 +190,7 @@ function App() {
   const handleEndDateChange = (index: number, newEndDateString: string) => {
     const activity = activities[index];
     const originalStart = activity.startDate
-      ? new Date(activity.startDate)
+      ? parseDateString(activity.startDate)
       : new Date();
     const newEnd = parseDateString(newEndDateString);
 
@@ -239,16 +251,30 @@ function App() {
     setHasUnsavedChanges(true);
   };
 
-  const handleProjectStartDateChange = (date: Date) => {
+  const handleProjectNameChange = (name: string) => {
+    setProjectName(name);
+    setHasUnsavedChanges(true);
+  };
+
+  const handleProjectStartDateChange = (date: string) => {
     setProjectStartDate(date);
+    setHasUnsavedChanges(true);
   };
 
   const handleIncludeWeekendsChange = (include: boolean) => {
     setIncludeWeekends(include);
+    setHasUnsavedChanges(true);
   };
 
   const handleSave = () => {
-    saveActivities(activities);
+    const project: Project = {
+      id: projectId,
+      name: projectName,
+      startDate: projectStartDate,
+      includeWeekends: includeWeekends,
+      activities: activities,
+    };
+    saveProject(project);
     setHasUnsavedChanges(false);
   };
 
@@ -271,6 +297,8 @@ function App() {
         </h1>
 
         <ProjectControls
+          projectName={projectName}
+          onProjectNameChange={handleProjectNameChange}
           projectStartDate={projectStartDate}
           onProjectStartDateChange={handleProjectStartDateChange}
           includeWeekends={includeWeekends}

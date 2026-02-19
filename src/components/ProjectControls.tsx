@@ -1,13 +1,15 @@
-import { formatDateForInput } from '../utils';
-
 interface ProjectControlsProps {
-  projectStartDate: Date;
-  onProjectStartDateChange: (date: Date) => void;
+  projectName: string;
+  onProjectNameChange: (name: string) => void;
+  projectStartDate: string;
+  onProjectStartDateChange: (date: string) => void;
   includeWeekends: boolean;
   onIncludeWeekendsChange: (include: boolean) => void;
 }
 
 export function ProjectControls({
+  projectName,
+  onProjectNameChange,
   projectStartDate,
   onProjectStartDateChange,
   includeWeekends,
@@ -18,12 +20,25 @@ export function ProjectControls({
       <div className="flex flex-col gap-4">
         <div className="flex flex-col">
           <label className="text-sm font-semibold text-slate-600 mb-2">
+            Project Name
+          </label>
+          <input
+            type="text"
+            value={projectName}
+            onChange={(e) => onProjectNameChange(e.target.value)}
+            placeholder="Enter project name"
+            className="px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div className="flex flex-col">
+          <label className="text-sm font-semibold text-slate-600 mb-2">
             Project Start Date
           </label>
           <input
             type="date"
-            value={formatDateForInput(projectStartDate)}
-            onChange={(e) => onProjectStartDateChange(new Date(e.target.value))}
+            value={projectStartDate}
+            onChange={(e) => onProjectStartDateChange(e.target.value)}
             className="px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
