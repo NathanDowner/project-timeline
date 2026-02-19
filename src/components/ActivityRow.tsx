@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   type Activity,
-  formatDateForInput,
   formatDateForDisplay,
   formatDependencies,
 } from '../utils';
@@ -23,46 +22,115 @@ export function ActivityRow({
   onEndDateChange,
   onDependenciesChange,
 }: ActivityRowProps) {
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Current input values - initialized from activity props
+  const [startDateInput, setStartDateInput] = useState<string>(
+    activity.startDate || '',
+  );
+  const [endDateInput, setEndDateInput] = useState<string>(
+    activity.endDate || '',
+  );
   const [depInput, setDepInput] = useState(
     formatDependencies(activity.dependencies),
   );
-  const [startDateInput, setStartDateInput] = useState<string>(
-    activity.startDate ? formatDateForInput(activity.startDate) : '',
-  );
-  const [endDateInput, setEndDateInput] = useState<string>(
-    activity.endDate ? formatDateForInput(activity.endDate) : '',
-  );
+  const [durationInput, setDurationInput] = useState<number>(activity.duration);
 
+  // Calculate duration based on date inputs
   useEffect(() => {
-    setDepInput(formatDependencies(activity.dependencies));
-    if (activity.startDate) {
-      setStartDateInput(formatDateForInput(activity.startDate));
+    if (startDateInput && endDateInput) {
+      const start = new Date(startDateInput);
+      const end = new Date(endDateInput);
+      const diffTime = end.getTime() - start.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      setDurationInput(diffDays > 0 ? diffDays : activity.duration);
+    } else {
+      setDurationInput(activity.duration);
+    }
+  }, [startDateInput, endDateInput, activity.duration]);
+
+  // Update input values when activity prop changes (but not while editing)
+  useEffect(() => {
+    if (!isEditing) {
+      setStartDateInput(activity.startDate || '');
+      setEndDateInput(activity.endDate || '');
+      setDepInput(formatDependencies(activity.dependencies));
+      setDurationInput(activity.duration);
+    }
+  }, [
+    activity.startDate,
+    activity.endDate,
+    activity.dependencies,
+    activity.duration,
+    isEditing,
+  ]);
+
+  // Check if any field has changed by comparing current input with prop values
+  const hasChanges =
+    startDateInput !== (activity.startDate || '') ||
+    endDateInput !== (activity.endDate || '') ||
+    depInput !== formatDependencies(activity.dependencies);
+
+  const handleRowClick = () => {
+    if (!isEditing) {
+      setIsEditing(true);
+    }
+  };
+
+  const handleSave = () => {
+    // Call only the callbacks for fields that changed
+    if (startDateInput !== (activity.startDate || '')) {
+      onStartDateChange(startDateInput);
+    }
+    if (endDateInput !== (activity.endDate || '')) {
+      onEndDateChange(endDateInput);
+    }
+    if (depInput !== formatDependencies(activity.dependencies)) {
+      onDependenciesChange(depInput);
     }
 
-    if (activity.endDate) {
-      setEndDateInput(formatDateForInput(activity.endDate));
-    }
-  }, [activity.dependencies, activity.startDate, activity.endDate]);
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    // Revert to original prop values
+    setStartDateInput(activity.startDate || '');
+    setEndDateInput(activity.endDate || '');
+    setDepInput(formatDependencies(activity.dependencies));
+    setDurationInput(activity.duration);
+    setIsEditing(false);
+  };
 
   return (
-    <tr key={activity.id} className="hover:bg-slate-50 transition-colors">
+    <tr
+      className={`transition-colors ${
+        isEditing ? 'bg-blue-50' : 'hover:bg-slate-50 cursor-pointer'
+      }`}
+      onClick={handleRowClick}
+    >
       <td className="px-4 py-3 border-b border-slate-200">
         <span className="font-mono text-slate-600">#{activity.id}</span>
       </td>
       <td className="px-4 py-3 border-b border-slate-200">
         <span className="text-slate-800">{activity.name}</span>
       </td>
-      <td className="px-4 py-3 border-b border-slate-200">
+      <td
+        className="px-4 py-3 border-b border-slate-200"
+        onClick={(e) => isEditing && e.stopPropagation()}
+      >
         {activity.id === INITIAL_ACTIVITY_ID ? (
           <span className="text-slate-500 italic">None</span>
-        ) : (
+        ) : isEditing ? (
           <input
             type="text"
             value={depInput}
             onChange={(e) => setDepInput(e.target.value)}
-            onBlur={() => onDependenciesChange(depInput)}
-            className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50"
+            className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+        ) : (
+          <span className="text-slate-800">
+            {depInput || <span className="text-slate-500 italic">None</span>}
+          </span>
         )}
       </td>
       <td className="px-4 py-3 border-b border-slate-200">
@@ -74,55 +142,88 @@ export function ActivityRow({
           <span className="text-slate-500 italic text-sm">Any day</span>
         )}
       </td>
-      <td className="px-4 py-3 border-b border-slate-200">
+      <td
+        className="px-4 py-3 border-b border-slate-200"
+        onClick={(e) => isEditing && e.stopPropagation()}
+      >
         {activity.startDate ? (
-          <div className="flex flex-col gap-1">
+          isEditing ? (
             <input
               type="date"
               value={startDateInput}
               onChange={(e) => setStartDateInput(e.target.value)}
-              className="px-2 py-1 text-sm border border-slate-400 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50 cursor-pointer"
-              onBlur={() => onStartDateChange(startDateInput)}
+              className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <span className="text-xs text-slate-600">
-              {formatDateForDisplay(new Date(startDateInput))}
+          ) : (
+            <span className="text-slate-800">
+              {formatDateForDisplay(startDateInput)}
             </span>
-          </div>
+          )
         ) : (
           <span className="text-slate-500 italic">Not set</span>
         )}
       </td>
       <td className="px-4 py-3 border-b border-slate-200">
-        <span className="text-slate-800 font-medium">{activity.duration}</span>
+        <span className="text-slate-800 font-medium">{durationInput}</span>
         <span className="text-slate-500 text-sm ml-1">
-          {activity.duration === 1 ? 'day' : 'days'}
+          {durationInput === 1 ? 'day' : 'days'}
         </span>
       </td>
-      <td className="px-4 py-3 border-b border-slate-200">
+      <td
+        className="px-4 py-3 border-b border-slate-200"
+        onClick={(e) => isEditing && e.stopPropagation()}
+      >
         {activity.endDate ? (
-          <div className="flex flex-col gap-1">
+          isEditing ? (
             <input
               type="date"
               value={endDateInput}
               onChange={(e) => setEndDateInput(e.target.value)}
-              onBlur={() => onEndDateChange(endDateInput)}
-              className="px-2 py-1 text-sm border border-slate-400 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 bg-blue-50 cursor-pointer"
+              className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <span className="text-xs text-slate-600">
-              {formatDateForDisplay(new Date(endDateInput))}
+          ) : (
+            <span className="text-slate-800">
+              {formatDateForDisplay(endDateInput)}
             </span>
-          </div>
+          )
         ) : (
           <span className="text-slate-500 italic">Not set</span>
         )}
       </td>
-      <td className="px-4 py-3 border-b border-slate-200">
-        <button
-          onClick={onDeleteActivity}
-          className="bg-red-500 hover:bg-red-600 text-white text-sm font-semibold px-3 py-1.5 rounded transition-colors"
-        >
-          Remove
-        </button>
+      <td
+        className="px-4 py-3 border-b border-slate-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {isEditing && (
+          <div className="flex gap-2">
+            <button
+              onClick={handleSave}
+              disabled={!hasChanges}
+              className={`text-xl transition-opacity ${
+                hasChanges
+                  ? 'hover:scale-110 cursor-pointer'
+                  : 'opacity-30 cursor-not-allowed'
+              }`}
+              title="Save changes"
+            >
+              ✅
+            </button>
+            <button
+              onClick={handleCancel}
+              className="text-xl hover:scale-110 transition-transform"
+              title="Cancel editing"
+            >
+              ❌
+            </button>
+            <button
+              onClick={onDeleteActivity}
+              className="text-xl hover:scale-110 transition-transform"
+              title="Delete activity"
+            >
+              🗑️
+            </button>
+          </div>
+        )}
       </td>
     </tr>
   );
